@@ -1,0 +1,6 @@
+# build outputs / local artifacts
+*.log
+RuneLiteSetup.exe
+/RuneLiteSetup*.exe
+launcher/
+runelite/

@@ -1,0 +1,7 @@
+# Keep the launcher patch byte-exact (LF) so `git apply` works on any runner.
+*.patch -text
+
+# Normalize the text files to LF.
+*.yml    text eol=lf
+*.md     text eol=lf
+.gitignore text eol=lf

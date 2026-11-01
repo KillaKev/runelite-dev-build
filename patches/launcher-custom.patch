@@ -1,0 +1,177 @@
+diff --git a/build-win64.sh b/build-win64.sh
+index 205e40f..fabfeae 100755
+--- a/build-win64.sh
++++ b/build-win64.sh
+@@ -26,6 +26,7 @@ echo "$WIN64_CHKSUM win64_jre.zip" | sha256sum -c
+ 
+ cp native/build-x64/src/Release/RuneLite.exe build/win-x64/
+ cp build/libs/RuneLite.jar build/win-x64/
++cp ../runelite/runelite-client/build/libs/client-*-shaded.jar build/win-x64/client.jar
+ cp packr/win-x64-config.json build/win-x64/config.json
+ cp liblauncher/build64/Release/launcher_amd64.dll build/win-x64/
+ 
+diff --git a/innosetup/runelite.iss b/innosetup/runelite.iss
+index 795a527..f76bb36 100644
+--- a/innosetup/runelite.iss
++++ b/innosetup/runelite.iss
+@@ -27,6 +27,7 @@ Name: DesktopIcon; Description: "Create a &desktop icon";
+ [Files]
+ Source: "${project.projectDir}\build\win-x64\RuneLite.exe"; DestDir: "{app}"; Flags: ignoreversion
+ Source: "${project.projectDir}\build\win-x64\RuneLite.jar"; DestDir: "{app}"
++Source: "${project.projectDir}\build\win-x64\client.jar"; DestDir: "{app}"
+ Source: "${project.projectDir}\build\win-x64\launcher_amd64.dll"; DestDir: "{app}"; Flags: ignoreversion
+ Source: "${project.projectDir}\build\win-x64\config.json"; DestDir: "{app}"
+ Source: "${project.projectDir}\build\win-x64\jre\*"; DestDir: "{app}\jre"; Flags: recursesubdirs
+diff --git a/src/main/java/net/runelite/launcher/ConfigurationFrame.java b/src/main/java/net/runelite/launcher/ConfigurationFrame.java
+index 2485601..db42a0e 100644
+--- a/src/main/java/net/runelite/launcher/ConfigurationFrame.java
++++ b/src/main/java/net/runelite/launcher/ConfigurationFrame.java
+@@ -61,6 +61,7 @@ public class ConfigurationFrame extends JFrame
+ 	private final JCheckBox chkboxSafemode;
+ 	private final JCheckBox chkboxIpv4;
+ 	private final JTextField txtScale;
++	private final JTextField txtPluginhubVersion;
+ 	private final JTextArea txtClientArguments;
+ 	private final JTextArea txtJvmArguments;
+ 	private final JComboBox<HardwareAccelerationMode> comboHardwareAccelMode;
+@@ -156,7 +157,7 @@ public class ConfigurationFrame extends JFrame
+ 
+ 		var bottomPanel = new JPanel();
+ 		bottomPanel.setBackground(DARKER_GRAY_COLOR);
+-		bottomPanel.setLayout(new GridLayout(3, 2, 0, 0));
++		bottomPanel.setLayout(new GridLayout(4, 2, 0, 0));
+ 
+ 		bottomPanel.add(label(
+ 			"Scale",
+@@ -173,6 +174,12 @@ public class ConfigurationFrame extends JFrame
+ 			settings.hardwareAccelerationMode
+ 		));
+ 
++		bottomPanel.add(label(
++			"Plugin hub version",
++			"RuneLite version used to fetch the plugin hub manifest. Leave empty for the default."
++		));
++		bottomPanel.add(txtPluginhubVersion = field(settings.pluginhubVersion));
++
+ 		bottomPanel.add(label("Launch mode", null));
+ 		bottomPanel.add(comboLaunchMode = combobox(
+ 			LaunchMode.values(),
+@@ -222,6 +229,9 @@ public class ConfigurationFrame extends JFrame
+ 			}
+ 		}
+ 
++		var pluginhubVersion = txtPluginhubVersion.getText().trim();
++		settings.pluginhubVersion = pluginhubVersion.isEmpty() ? null : pluginhubVersion;
++
+ 		settings.clientArguments = Splitter.on('\n')
+ 			.omitEmptyStrings()
+ 			.trimResults()
+diff --git a/src/main/java/net/runelite/launcher/Launcher.java b/src/main/java/net/runelite/launcher/Launcher.java
+index c0f8a1a..053e8df 100644
+--- a/src/main/java/net/runelite/launcher/Launcher.java
++++ b/src/main/java/net/runelite/launcher/Launcher.java
+@@ -51,6 +51,7 @@ import java.net.http.HttpClient;
+ import java.net.http.HttpRequest;
+ import java.net.http.HttpResponse;
+ import java.nio.file.Files;
++import java.nio.file.StandardCopyOption;
+ import java.security.InvalidKeyException;
+ import java.security.NoSuchAlgorithmException;
+ import java.security.Signature;
+@@ -95,6 +96,8 @@ public class Launcher
+ 	private static final String USER_AGENT = "RuneLite/" + LauncherProperties.getVersion();
+ 	static final String LAUNCHER_EXECUTABLE_NAME_WIN = "RuneLite.exe";
+ 	static final String LAUNCHER_EXECUTABLE_NAME_OSX = "RuneLite";
++	private static final String PLUGINHUB_VERSION_KEY = "runelite.pluginhub.version";
++	private static final String DEFAULT_PLUGINHUB_VERSION = "1.13.5";
+ 	static boolean nativesLoaded;
+ 
+ 	private static HttpClient httpClient;
+@@ -113,6 +116,7 @@ public class Launcher
+ 		parser.accepts("noupdate", "Skips the launcher self-update");
+ 		parser.accepts("help", "Show this text (use -- --help for client help)").forHelp();
+ 		parser.accepts("classpath", "Classpath for the client").withRequiredArg();
++		parser.accepts("pluginhub-version", "Plugin hub manifest version used by the client").withRequiredArg();
+ 		parser.accepts("J", "JVM argument (FORK or JVM launch mode only)").withRequiredArg();
+ 		parser.accepts("configure", "Opens configuration GUI");
+ 		parser.accepts("launch-mode", "JVM launch method (JVM, FORK, REFLECT)")
+@@ -252,7 +256,14 @@ public class Launcher
+ 			}
+ 
+ 			// Stream launcher version
+-			jvmProps.put(LauncherProperties.getVersionKey(), LauncherProperties.getVersion());
++			if (!getClientArgs(settings).contains("--developer-mode"))
++			{
++				jvmProps.put(LauncherProperties.getVersionKey(), LauncherProperties.getVersion());
++			}
++
++			jvmProps.put(PLUGINHUB_VERSION_KEY, settings.pluginhubVersion != null
++				? settings.pluginhubVersion
++				: DEFAULT_PLUGINHUB_VERSION);
+ 
+ 			if (settings.isSkipTlsVerification())
+ 			{
+@@ -420,9 +431,20 @@ public class Launcher
+ 			final Collection<String> clientArgs = getClientArgs(settings);
+ 			SplashScreen.stage(.90, "Starting the client", "");
+ 
+-			var classpath = artifacts.stream()
+-				.map(dep -> new File(REPO_DIR, dep.getName()))
+-				.collect(Collectors.toList());
++			var bundledClient = new File("client.jar");
++			List<File> classpath;
++			if (bundledClient.exists())
++			{
++				var dest = new File(REPO_DIR, bundledClient.getName());
++				Files.copy(bundledClient.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
++				classpath = List.of(dest);
++			}
++			else
++			{
++				classpath = artifacts.stream()
++					.map(dep -> new File(REPO_DIR, dep.getName()))
++					.collect(Collectors.toList());
++			}
+ 
+ 			List<String> jvmParams = new ArrayList<>();
+ 			// Set hs_err_pid location. This is a jvm param and can't be set at runtime.
+diff --git a/src/main/java/net/runelite/launcher/LauncherSettings.java b/src/main/java/net/runelite/launcher/LauncherSettings.java
+index 5cc27f4..15591f7 100644
+--- a/src/main/java/net/runelite/launcher/LauncherSettings.java
++++ b/src/main/java/net/runelite/launcher/LauncherSettings.java
+@@ -70,6 +70,8 @@ class LauncherSettings
+ 	boolean ipv4;
+ 	@Nullable
+ 	Double scale;
++	@Nullable
++	String pluginhubVersion;
+ 	List<String> clientArguments = Collections.emptyList();
+ 	List<String> jvmArguments = Collections.emptyList();
+ 	HardwareAccelerationMode hardwareAccelerationMode = HardwareAccelerationMode.AUTO;
+@@ -98,6 +100,10 @@ class LauncherSettings
+ 		{
+ 			scale = Double.parseDouble(String.valueOf(options.valueOf("scale")));
+ 		}
++		if (options.has("pluginhub-version"))
++		{
++			pluginhubVersion = String.valueOf(options.valueOf("pluginhub-version"));
++		}
+ 
+ 		if (options.has("J"))
+ 		{
+@@ -145,6 +151,7 @@ class LauncherSettings
+ 				" safe mode: {}" + System.lineSeparator() +
+ 				" ipv4: {}" + System.lineSeparator() +
+ 				" scale: {}" + System.lineSeparator() +
++				" plugin hub version: {}" + System.lineSeparator() +
+ 				" client arguments: {}" + System.lineSeparator() +
+ 				" jvm arguments: {}" + System.lineSeparator() +
+ 				" hardware acceleration mode: {}" + System.lineSeparator() +
+@@ -157,6 +164,7 @@ class LauncherSettings
+ 				safemode,
+ 				ipv4,
+ 				scale == null ? "system" : scale,
++				pluginhubVersion == null ? "default" : pluginhubVersion,
+ 				clientArguments.isEmpty() ? "none" : clientArguments,
+ 				jvmArguments.isEmpty() ? "none" : jvmArguments,
+ 				hardwareAccelerationMode,

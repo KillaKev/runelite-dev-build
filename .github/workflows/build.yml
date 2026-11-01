@@ -1,0 +1,95 @@
+name: build
+
+# Builds the RuneLite dev client (bundled client.jar + developer-mode launcher)
+# and the Windows installer, then uploads RuneLiteSetup.exe as an artifact.
+#
+# The launcher patch (patches/launcher-custom.patch) is applied on top of a
+# pinned upstream runelite/launcher commit.
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      client_ref:
+        description: 'runelite/runelite ref to build'
+        required: true
+        default: 'master'
+      launcher_ref:
+        description: 'runelite/launcher commit the patch is applied to'
+        required: true
+        default: 'f683f094736b35800b9a00fa75cef4e21333c176'
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout build tooling
+        uses: actions/checkout@v7
+
+      - name: Checkout client (runelite/runelite)
+        uses: actions/checkout@v7
+        with:
+          repository: runelite/runelite
+          ref: ${{ github.event.inputs.client_ref || 'master' }}
+          path: runelite
+
+      - name: Checkout launcher (pinned upstream)
+        uses: actions/checkout@v7
+        with:
+          repository: runelite/launcher
+          ref: ${{ github.event.inputs.launcher_ref || 'f683f094736b35800b9a00fa75cef4e21333c176' }}
+          path: launcher
+          submodules: recursive
+
+      - name: Apply dev-launcher patch
+        shell: bash
+        run: |
+          cd launcher
+          git apply ../patches/launcher-custom.patch
+
+      - name: Install Inno Setup
+        shell: cmd
+        run: choco install innosetup --version 6.6.1 --allow-downgrade -y
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Build client (shadowJar)
+        shell: bash
+        working-directory: runelite
+        run: ./gradlew :client:shadowJar --no-daemon --console=plain
+
+      - name: Build detours (x64)
+        shell: cmd
+        working-directory: launcher
+        run: |
+          call ci\msvc-env.cmd x64
+          cd liblauncher\detours\src
+          nmake
+
+      - name: Build launcher jar
+        shell: bash
+        working-directory: launcher
+        run: ./gradlew build -P RUNELITE_BUILD=runelite --no-daemon --console=plain
+
+      - name: Build installer (native + JRE + Inno Setup)
+        shell: cmd
+        working-directory: launcher
+        run: |
+          call ci\msvc-env.cmd x64
+          bash ./build-win64.sh
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: RuneLiteSetup
+          path: launcher/RuneLiteSetup.exe
+          if-no-files-found: error
