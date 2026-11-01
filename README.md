@@ -29,14 +29,26 @@ Then download the **RuneLiteSetup** artifact from the run and execute it.
 
 ## Enable developer mode after installing
 
-Open the launcher config — Start Menu → **RuneLite (configure)** (or `RuneLite.exe --configure`) —
-add `--developer-mode` to **Client arguments**, and click **Save**. That writes `settings.json`:
+Developer mode needs **two** settings. Open the launcher config — Start Menu →
+**RuneLite (configure)** (or `RuneLite.exe --configure`) — and set:
+
+- **Client arguments:** `--developer-mode`
+- **JVM arguments:** `-ea` — **required.** The client refuses to start dev mode unless
+  assertions are enabled ("Developers should enable assertions; Add `-ea` to your JVM arguments").
+
+Click **Save**, which writes `settings.json`:
 
 ```json
-{ "clientArguments": ["--developer-mode"] }
+{
+  "clientArguments": ["--developer-mode"],
+  "jvmArguments": ["-ea"]
+}
 ```
 
-Alternatively set `RUNELITE_ARGS=--developer-mode` before launching.
+> `-ea` only takes effect in a forked JVM. Leave **Launch mode** on `AUTO` (it uses FORK/JVM).
+> Do **not** use `REFLECT` — it runs the client in the launcher's own JVM and ignores JVM args.
+
+Alternatively set `RUNELITE_ARGS=--developer-mode` (assertions still require `-ea`).
 
 ## The patch
 
