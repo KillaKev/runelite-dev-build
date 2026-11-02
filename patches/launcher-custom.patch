@@ -67,7 +67,7 @@ index 2485601..db42a0e 100644
  			.omitEmptyStrings()
  			.trimResults()
 diff --git a/src/main/java/net/runelite/launcher/Launcher.java b/src/main/java/net/runelite/launcher/Launcher.java
-index c0f8a1a..053e8df 100644
+index c0f8a1a..aeb7d10 100644
 --- a/src/main/java/net/runelite/launcher/Launcher.java
 +++ b/src/main/java/net/runelite/launcher/Launcher.java
 @@ -51,6 +51,7 @@ import java.net.http.HttpClient;
@@ -135,6 +135,20 @@ index c0f8a1a..053e8df 100644
  
  			List<String> jvmParams = new ArrayList<>();
  			// Set hs_err_pid location. This is a jvm param and can't be set at runtime.
+@@ -624,6 +646,13 @@ public class Launcher
+ 				.splitToList(envArgs));
+ 		}
+ 
++		// Developer mode requires assertions to be enabled. Auto-add -ea when
++		// --developer-mode is a client argument, so users don't have to set it manually.
++		if (getClientArgs(settings).contains("--developer-mode") && !args.contains("-ea"))
++		{
++			args.add("-ea");
++		}
++
+ 		return args;
+ 	}
+ 
 diff --git a/src/main/java/net/runelite/launcher/LauncherSettings.java b/src/main/java/net/runelite/launcher/LauncherSettings.java
 index 5cc27f4..15591f7 100644
 --- a/src/main/java/net/runelite/launcher/LauncherSettings.java
