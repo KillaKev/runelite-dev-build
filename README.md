@@ -61,9 +61,11 @@ Alternatively set `RUNELITE_ARGS=--developer-mode` (the launcher still auto-adds
 | `innosetup/runelite.iss` | ship `client.jar` in the installer |
 | `build-win64.sh` | copy the client shaded jar into `build/win-x64` |
 
-The default plugin-hub version is `DEFAULT_PLUGINHUB_VERSION` in `Launcher.java`
-(currently **`1.13.5`**). The client fetches `…/plugins/manifest/<ver>_lite.js`, so bump this
-to the current RuneLite release when you update.
+The plugin-hub version is `DEFAULT_PLUGINHUB_VERSION` in `Launcher.java` (fallback `1.13.5`).
+The client fetches `…/plugins/manifest/<ver>_lite.js`. **During CI this is auto-resolved** to the
+newest released RuneLite that actually has a published manifest (see the "Resolve & set default
+plugin-hub version" step), so you don't need to bump it by hand. Override it with the
+`pluginhub_version` workflow input if needed.
 
 ## Keeping up to date with upstream
 

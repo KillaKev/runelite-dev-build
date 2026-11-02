@@ -19,6 +19,10 @@ on:
         description: 'runelite/launcher commit the patch is applied to'
         required: true
         default: 'f683f094736b35800b9a00fa75cef4e21333c176'
+      pluginhub_version:
+        description: 'Plugin-hub version for DEFAULT_PLUGINHUB_VERSION (empty = auto-detect latest released)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -50,6 +54,30 @@ jobs:
         run: |
           cd launcher
           git apply ../patches/launcher-custom.patch
+
+      - name: Resolve & set default plugin-hub version
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Plugin-hub manifests are served per RuneLite release at
+          # https://repo.runelite.net/plugins/manifest/<version>_lite.js
+          VERSION="${{ github.event.inputs.pluginhub_version || '' }}"
+          if [ -z "$VERSION" ]; then
+            echo "Auto-detecting newest released RuneLite with a published manifest..."
+            for v in $(git ls-remote --tags --refs https://github.com/runelite/runelite 'refs/tags/runelite-parent-*' \
+                | sed 's#.*refs/tags/runelite-parent-##' | sort -Vr); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' "https://repo.runelite.net/plugins/manifest/${v}_lite.js" || true)
+              if [ "$code" = "200" ]; then VERSION="$v"; break; fi
+            done
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not resolve a plugin-hub version"
+            exit 1
+          fi
+          echo "Using plugin-hub version: $VERSION"
+          sed -i -E "s/DEFAULT_PLUGINHUB_VERSION = \"[^\"]*\"/DEFAULT_PLUGINHUB_VERSION = \"${VERSION}\"/" \
+            launcher/src/main/java/net/runelite/launcher/Launcher.java
+          grep -n 'DEFAULT_PLUGINHUB_VERSION =' launcher/src/main/java/net/runelite/launcher/Launcher.java
 
       - name: Install Inno Setup
         shell: cmd
