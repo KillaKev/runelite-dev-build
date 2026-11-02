@@ -20,6 +20,10 @@ dev-mode-capable launcher.
    `build/win-x64`, and compiles the installer with Inno Setup (`build-win64.sh`).
 4. Uploads **`RuneLiteSetup.exe`** as an artifact.
 
+> **Upstream-only:** the build uses only `runelite/runelite` and `runelite/launcher` (pinned) plus
+> the local patch — it does **not** depend on any personal fork. To move to a newer upstream
+> launcher, regenerate the patch and bump `launcher_ref` (see "Keeping up to date" below).
+
 ## Run a build
 
 - Push to `main`, **or**
