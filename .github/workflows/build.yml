@@ -18,7 +18,7 @@ on:
       launcher_ref:
         description: 'runelite/launcher commit the patch is applied to'
         required: true
-        default: 'f683f094736b35800b9a00fa75cef4e21333c176'
+        default: '6102d0185a530ffcd5ed298df3bf509193dda1b9'
       pluginhub_version:
         description: 'Plugin-hub version for DEFAULT_PLUGINHUB_VERSION (empty = auto-detect latest released)'
         required: false
@@ -45,7 +45,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: runelite/launcher
-          ref: ${{ github.event.inputs.launcher_ref || 'f683f094736b35800b9a00fa75cef4e21333c176' }}
+          ref: ${{ github.event.inputs.launcher_ref || '6102d0185a530ffcd5ed298df3bf509193dda1b9' }}
           path: launcher
           submodules: recursive
 

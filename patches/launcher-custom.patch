@@ -1,13 +1,13 @@
 diff --git a/build-win64.sh b/build-win64.sh
-index 205e40f..fabfeae 100755
+index fface10..8bcfe0b 100755
 --- a/build-win64.sh
 +++ b/build-win64.sh
-@@ -26,6 +26,7 @@ echo "$WIN64_CHKSUM win64_jre.zip" | sha256sum -c
+@@ -20,6 +20,7 @@ mkdir -p build/win-x64
  
  cp native/build-x64/src/Release/RuneLite.exe build/win-x64/
  cp build/libs/RuneLite.jar build/win-x64/
 +cp ../runelite/runelite-client/build/libs/client-*-shaded.jar build/win-x64/client.jar
- cp packr/win-x64-config.json build/win-x64/config.json
+ cp native/config.json build/win-x64/config.json
  cp liblauncher/build64/Release/launcher_amd64.dll build/win-x64/
  
 diff --git a/innosetup/runelite.iss b/innosetup/runelite.iss
